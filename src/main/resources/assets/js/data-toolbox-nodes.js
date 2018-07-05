@@ -88,19 +88,19 @@ class NodesRoute extends DtbRoute {
                 const displayMetaDataCallback = () => setState('system-properties',{repo: getRepoParameter(), branch: getBranchParameter(), path: node._path});
                 const displayPropertiesCallback = () => setState('properties',{repo: getRepoParameter(), branch: getBranchParameter(), path: node._path});
                 const displayPermissionsCallback = () => setState('permissions',{repo: getRepoParameter(), branch: getBranchParameter(), path: node._path});
-                const displayJsonCallback = () => this.displayNodeAsJson(node._id);
+                const editJsonCallback = () => this.editJson(node._id);
                 
                 const displayMetaDataIconArea = new RcdImageIconArea(config.assetsUrl + '/icons/meta.svg', (source, event) => {displayMetaDataCallback();event.stopPropagation();}).init().setTooltip('Display system properties');
                 const displayPropertiesIconArea = new RcdImageIconArea(config.assetsUrl + '/icons/properties.svg', (source, event) => {displayPropertiesCallback();event.stopPropagation();}).init().setTooltip('Display properties');
                 const displayPermissionsIconArea = new RcdGoogleMaterialIconArea('lock', (source, event) => {displayPermissionsCallback();event.stopPropagation();}).init().setTooltip('Display permissions');
-                const displayJsonIconArea = new RcdImageIconArea(config.assetsUrl + '/icons/json.svg', (source, event) => {displayJsonCallback();event.stopPropagation();}).init().setTooltip('Display as JSON');
+                const editJsonArea = new RcdImageIconArea(config.assetsUrl + '/icons/json.svg', (source, event) => {editJsonCallback();event.stopPropagation();}).init().setTooltip('Edit JSON');
                 
                 const moreIconAreaItems =  [{text:'Display system properties', callback: displayMetaDataCallback}, 
                     {text:'Display properties', callback: displayPropertiesCallback}, 
-                    {text:'Display permissions', callback: displayPermissionsCallback}, 
-                    {text:'Display as JSON', callback: displayJsonCallback}];
+                    {text:'Display permissions', callback: displayPermissionsCallback},
+                    {text:'Edit JSON', callback: editJsonCallback}];
                 const moreIconArea = new RcdGoogleMaterialIconArea('more_vert', (source, event) => {
-                    RcdMaterialMenuHelper.displayMenu(source, moreIconAreaItems, 200)
+                    RcdMaterialMenuHelper.displayMenu(source, moreIconAreaItems, 250)
                     event.stopPropagation();
                 }).init().setTooltip('Display...');
 
@@ -110,7 +110,7 @@ class NodesRoute extends DtbRoute {
                     addCell(displayMetaDataIconArea, {icon: true, classes: ['non-mobile-cell']}).
                     addCell(displayPropertiesIconArea, {icon: true, classes: ['non-mobile-cell']}).
                     addCell(displayPermissionsIconArea, {icon: true, classes: ['non-mobile-cell']}).
-                    addCell(displayJsonIconArea, {icon: true, classes: ['non-mobile-cell']}).
+                    addCell(editJsonArea, {icon: true, classes: ['non-mobile-cell']}).
                     addCell(moreIconArea, {icon: true, classes: ['mobile-cell']}).
                     setAttribute('id', node._id).
                     setAttribute('path', node._path).
@@ -174,12 +174,12 @@ class NodesRoute extends DtbRoute {
         });
     }
 
-    displayNodeAsJson(nodeKey) {
+    editJson(nodeKey) {
         if (!nodeKey) {
             nodeKey = this.tableCard.getSelectedRows().map((row) => row.attributes['id'])[0];
         }
 
-        const infoDialog = showShortInfoDialog("Retrieving node info...");
+        const infoDialog = showShortInfoDialog("Retrieving jsoneditor..." + nodeKey);
         return $.ajax({
             method: 'POST',
             url: config.servicesUrl + '/node-get',
@@ -191,9 +191,115 @@ class NodesRoute extends DtbRoute {
             contentType: 'application/json; charset=utf-8'
         }).done((result) => {
             if (handleResultError(result)) {
-                const formattedJson = this.formatJson(result.success, '');
-                showDetailsDialog('Node [' + nodeKey + ']', formattedJson).
-                    addClass('node-details-dialog');
+                var jsonEditor;
+                showConfirmationDialog("View / Modify JSON", 'MODIFY', () => this.doModifyJson(nodeKey, jsonEditor)).
+                addClass('jsoneditor-dialog');
+                var container = document.querySelector(".jsoneditor-dialog .rcd-material-dialog-body");
+                const options = {
+                    mode: 'tree',
+                    modes: ['code', 'form', 'text', 'tree', 'view'], // allowed modes
+                    onError: function (err) {
+                        alert(err.toString());
+                    },
+                    onModeChange: function (newMode, oldMode) {
+                        //console.log('Mode switched from', oldMode, 'to', newMode);
+                    },
+                    onEditable: function (node) {
+                        // node is an object like:
+                        //   {
+                        //     field: 'FIELD',
+                        //     value: 'VALUE',
+                        //     path: ['PATH', 'TO', 'NODE']
+                        //   }
+                        switch (node.field) {
+                            case '_id':
+                                return {
+                                    field: false,
+                                    value: false
+                                };
+                            case '_name':
+                                return {
+                                    field: false,
+                                    value: false
+                                };
+                            case '_path':
+                                return {
+                                    field: false,
+                                    value: false
+                                };
+                            case '_childOrder':
+                                return {
+                                    field: false,
+                                    value: true
+                                };
+                            case '_indexConfig':
+                                return {
+                                    field: false
+                                };
+                            case '_inheritsPermissions':
+                                return {
+                                    field: false,
+                                    value: true
+                                };
+                            case '_permissions':
+                                return {
+                                    field: false
+                                };
+                            case '_state':
+                                return {
+                                    field: false
+                                };
+                            case '_nodeType':
+                                return {
+                                    field: false
+                                };
+                            case '_versionKey':
+                                return {
+                                    field: false,
+                                    value: false
+                                };
+                            case '_timestamp':
+                                return {
+                                    field: false
+                                };
+                            default:
+                                return {
+                                    field: true,
+                                    value: true
+                                };
+                        }
+                    }
+                };
+                jsonEditor = new JSONEditor(container, options);
+                jsonEditor.set(result.success);
+            }
+        }).fail(handleAjaxError).always(() => {
+            infoDialog.close();
+        });
+
+    }
+
+    doModifyJson(nodeKey, json) {
+        console.log(json.get());
+        var infoDialog;
+        if (!nodeKey) {
+            infoDialog = showShortInfoDialog("Error. Nodekey is undefined");
+        }else{
+            infoDialog = showLongInfoDialog("Modifying JSON...");
+        }
+        return $.ajax({
+            method: 'POST',
+            url: config.servicesUrl + '/node-modify',
+            data: JSON.stringify({
+                repositoryName: getRepoParameter(),
+                branchName: getBranchParameter(),
+                key: nodeKey,
+                json: json.get()
+            }),
+            contentType: 'application/json; charset=utf-8'
+        }).done((result) => {
+            if (handleResultError(result)) {
+                displaySnackbar('Node modified');
             }
         }).fail(handleAjaxError).always(() => {
             infoDialog.close();
