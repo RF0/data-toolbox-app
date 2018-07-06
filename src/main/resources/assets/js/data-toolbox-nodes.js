@@ -197,7 +197,7 @@ class NodesRoute extends DtbRoute {
                 var container = document.querySelector(".jsoneditor-dialog .rcd-material-dialog-body");
                 const options = {
                     mode: 'tree',
-                    modes: ['code', 'form', 'text', 'tree', 'view'], // allowed modes
+                    modes: ['form', 'text', 'tree', 'view', 'code'], // allowed modes
                     onError: function (err) {
                         alert(err.toString());
                     },
